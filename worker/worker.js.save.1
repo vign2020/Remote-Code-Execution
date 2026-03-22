@@ -1,0 +1,88 @@
+
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from "@aws-sdk/client-sqs";
+import { exec } from "child_process";
+import fs from "fs";
+import path from "path";
+
+const client = new SQSClient({ region: "ap-south-1" });
+
+const QUEUE_URL = "https://sqs.ap-south-1.amazonaws.com/905418039311/rce-queue";
+
+
+async function pollQueue() {
+  while (true) {
+    try {
+      const command = new ReceiveMessageCommand({
+        QueueUrl: QUEUE_URL,
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: 20, // long polling
+        VisibilityTimeout: 120
+      });
+
+      const response = await client.send(command);
+
+      if (!response.Messages) {
+        console.log("No messages...");
+        continue;
+      }
+
+      for (const msg of response.Messages) {
+        const job = JSON.parse(msg.Body); 
+       console.log('message is ' + job.code);
+        console.log("Received job:", msg.Body);
+        //wrie the code to a file insi the  worker  i.e worker -> container
+        const submissionDir = `/tmp/sub-${Date.now()}`
+        fs.mkdirSync(submissionDir, { recursive: true });
+
+        const codePath = path.join(submissionDir, "main.cpp");
+        fs.writeFileSync(codePath, job.code);
+
+await new Promise((resolve, reject) => {
+
+const cmd = `
+docker run --rm \
+-v ${submissionDir}:/code \
+-v /home/ubuntu/contest-data/contest-1/problem-${job.problemId}:/tests \
+gcc:latest \
+bash -c "
+g++ /code/main.cpp -O2 -o /code/a.out &&
+for infile in /tests/input/*.txt; do
+  /code/a.out < \$infile
+done
+"
+`;
+A  
+
+
+  exec(cmd, (error, stdout, stderr) => {
+    console.log("STDOUT:", stdout);
+    console.log("STDERR:", stderr);
+
+    if (error) {
+      console.log("Execution failed");
+      reject(error);
+    } else {
+      console.log("Execution success");
+      resolve(true);
+    }
+  });
+
+});
+
+
+        // After job success → delete message
+        await client.send(new DeleteMessageCommand({
+          QueueUrl: QUEUE_URL,
+          ReceiptHandle: msg.ReceiptHandle
+        }));
+
+        console.log("Job done and deleted from queue");
+      }
+
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  }
+}
+
+pollQueue();

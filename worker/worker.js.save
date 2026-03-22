@@ -1,0 +1,46 @@
+
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from "@aws-sdk/client-sqs";
+
+const client = new SQSClient({ region: "ap-south-1" });
+
+const QUEUE_URL = "https://sqs.ap-south-1.amazonaws.com/905418039311/rce-queue";
+
+async function pollQueue() {
+  while (true) {
+    try {
+      const command = new ReceiveMessageCommand({
+        QueueUrl: QUEUE_URL,
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: 20, // long polling
+        VisibilityTimeout: 120
+      });
+
+      const response = await client.send(command);
+
+      if (!response.Messages) {
+        console.log("No messages...");
+        continue;
+      }
+
+      for (const msg of response.Messages) {
+        console.log("Received job:", msg.Body);
+
+        // 🔥 HERE is where you will run Docker later
+        console.log("Pretending to execute code...");
+
+        // After job success → delete message
+        await client.send(new DeleteMessageCommand({
+          QueueUrl: QUEUE_URL,
+          ReceiptHandle: msg.ReceiptHandle
+        }));
+
+        console.log("Job done and deleted from queue");
+      }
+
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  }
+}
+
+pollQueue();
