@@ -17,6 +17,6 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /remote-machine/worker
+            cd remote-machine/worker
             git pull origin main
             docker compose up --build -d
