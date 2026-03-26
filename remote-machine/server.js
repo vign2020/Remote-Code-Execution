@@ -3,12 +3,16 @@ import bodyParser from "body-parser";
 
 
 import dotenv from "dotenv";
+import dbConnect from "./db.js";
+
 dotenv.config();
 const PORT = process.env.PORT || 8000;
 
 const app = express();
 app.use(bodyParser.json());
 
+
+await dbConnect();
 
 app.get("/health",(req, res)=>{
 	try{

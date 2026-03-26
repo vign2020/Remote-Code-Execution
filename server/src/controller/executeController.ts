@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
-// import Submission from "../models/Submissions.js";
+import Submission from "../models/Submissions.js";
 import mongoose from "mongoose";
 
 const client = new SQSClient({ region: "ap-south-1" });
@@ -12,19 +12,19 @@ export const executeController = async (req: Request, res: Response) => {
 
   try {
     // Ensure MongoDB connection is ready
-    // if (mongoose.connection.readyState !== 1) {
-    //   throw new Error("Database connection is not established.");
-    // }
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error("Database connection is not established.");
+    }
 
     // Record the submission in the database with status as pending
-    // const newSubmission = new Submission({
-    //   submissionId: submissionId,
-    //   status: "pending",
-    // });
+    const newSubmission = new Submission({
+      submissionId: submissionId,
+      status: "pending",
+    });
 
-    // await newSubmission.save();
+    await newSubmission.save();
 
-    // console.log("Submission recorded in DB with ID:", newSubmission);
+    console.log("Submission recorded in DB with ID:", newSubmission);
 
     await client.send(
       new SendMessageCommand({
