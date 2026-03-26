@@ -1,9 +1,10 @@
+/** @format */
+
 import express from "express";
 import bodyParser from "body-parser";
 
-
 import dotenv from "dotenv";
-import dbConnect from "./db.js";
+import connectDB from "./db.js";
 
 dotenv.config();
 const PORT = process.env.PORT || 8000;
@@ -11,18 +12,17 @@ const PORT = process.env.PORT || 8000;
 const app = express();
 app.use(bodyParser.json());
 
-
-await dbConnect();
-
-app.get("/health",(req, res)=>{
-	try{
-res.status(200).json({message : "all working fine !!"});
-}
-catch(e){
-res.status(500).json({message : "Not reachable !!"});
-	}	
+app.get("/health", (req, res) => {
+  try {
+    res.status(200).json({ message: "all working fine !!" });
+  } catch (e) {
+    res.status(500).json({ message: "Not reachable !!" });
+  }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = (async () => {
+  await connectDB();
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+})();
