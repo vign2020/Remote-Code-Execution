@@ -3,6 +3,7 @@ import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import Submission from "../models/Submission.js";
 dotenv.config();
 
 const AWS_REGION = process.env.AWS_REGION;
@@ -76,18 +77,28 @@ done
 "
 `;
 
-            exec(cmd, (error, stdout, stderr) => {
-              console.log("STDOUT:", stdout);
-              console.log("STDERR:", stderr);
+           exec(cmd, async (error, stdout, stderr) => {
+                console.log("STDOUT:", stdout);
+                console.log("STDERR:", stderr);
 
-              if (error) {
-                console.log("Execution failed");
-                reject(error);
-              } else {
-                console.log("Execution success");
-                resolve(true);
-              }
-            });
+  const result = {
+  status: error ? "failed" : "passed",
+    output: stdout,
+    error: stderr
+  };
+
+  try {
+    await Submission.findOneAndUpdate(
+      { submissionId: job.submission_id },
+      result,
+      { new: true }
+    );
+    console.log("Result saved to DB");
+  } catch (dbErr) {
+    console.error("DB update failed:", dbErr);
+  }
+});
+
 
           });
 
