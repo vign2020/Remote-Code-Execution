@@ -40,14 +40,15 @@ async function pollQueue() {
 
         try {
 
-          const job = msg.Body ? JSON.parse(msg.Body) : null;
+          const job = JSON.parse(msg.Body);
 
           const submissionDir = `/tmp/sub-${Date.now()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
 
           const codePath = path.join(submissionDir, "main.cpp");
+          console.log("Code written to file:", codePath  + " with content: " + job);
           fs.writeFileSync(codePath, job.code);
-          console.log("Code written to file:", codePath  + " with content: " + job.code);
+          
           await new Promise((resolve, reject) => {
 
             const cmd = `
