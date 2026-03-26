@@ -14,7 +14,6 @@ const client = new SQSClient({ region: AWS_REGION });
 
 console.log('QUEUE is ' + QUEUE_URL)
 
-console.log('this is the second message to check if github actions has worked... 🫦😉')
 
 
 
@@ -48,7 +47,7 @@ async function pollQueue() {
 
           const codePath = path.join(submissionDir, "main.cpp");
           fs.writeFileSync(codePath, job.code);
-
+          console.log("Code written to file:", codePath  + " with content: " + job.code);
           await new Promise((resolve, reject) => {
 
             const cmd = `
@@ -97,7 +96,7 @@ done
 
         } finally {
 
-          // ALWAYS delete message so old jobs don't repeat
+          // delete message so old jobs don't repeat
           await client.send(new DeleteMessageCommand({
             QueueUrl: QUEUE_URL,
             ReceiptHandle: msg.ReceiptHandle
