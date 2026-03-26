@@ -4,7 +4,7 @@ import express from "express";
 import bodyParser from "body-parser";
 
 import dotenv from "dotenv";
-import connectDB from "./db.js";
+import connectDB from "./worker/db.js";
 
 dotenv.config();
 const PORT = process.env.PORT || 8000;
