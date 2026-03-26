@@ -13,7 +13,8 @@ const client = new SQSClient({ region: AWS_REGION });
 
 
 console.log('QUEUE is ' + QUEUE_URL)
-console.log('This is to check if github actions has worked... 🫦😉')
+
+console.log('this is the second message to check if github actions has worked... 🫦😉')
 
 
 
