@@ -43,10 +43,8 @@ async function pollQueue() {
       for (const msg of response.Messages) {
         try {
           const job = JSON.parse(msg.Body);
-
           const submissionDir = `/tmp/sub-${Date.now()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
-
           const codePath = path.join(submissionDir, "main.cpp");
           console.log(
             "Code written to file:",
@@ -103,9 +101,11 @@ done
                   result,
                   { new: true },
                 );
+                resolve();
                 console.log("Result saved to DB");
               } catch (dbErr) {
                 console.error("DB update failed:", dbErr);
+                reject(dbErr);
               }
             });
           });

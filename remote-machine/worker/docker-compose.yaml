@@ -15,3 +15,4 @@ services:
     volumes:
       - ./models:/app/models
       - ./worker/db.js:/app/worker/db.js
+      - /var/run/docker.sock:/var/run/docker.sock
