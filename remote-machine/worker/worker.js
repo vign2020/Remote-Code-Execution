@@ -11,7 +11,7 @@ import path from "path";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import Submission from "./models/Submission.js";
-import connectDB from "../db.js";
+import connectDB from "./db.js";
 
 dotenv.config();
 
