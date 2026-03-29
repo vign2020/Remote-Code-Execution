@@ -64,7 +64,6 @@ for f in /tests/input/*.txt; do
   name=\\$(basename \\$f .txt)
 
   echo 'Running test:' \\$name
-
   /code/a.out < \\$f > /code/useroutput-\\$name.txt
 
   echo 'User Output:'
