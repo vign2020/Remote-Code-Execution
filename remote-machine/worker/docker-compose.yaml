@@ -15,4 +15,3 @@ services:
     volumes:
       - /tmp:/tmp
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/ubuntu/contest-data:/app/contest-data
