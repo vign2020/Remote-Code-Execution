@@ -9,7 +9,6 @@ import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
 import Submission from "./models/Submission.js";
 import connectDB from "./db.js";
 
