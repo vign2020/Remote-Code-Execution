@@ -51,6 +51,7 @@ async function pollQueue() {
           await new Promise((resolve, reject) => {
             const cmd = `
 docker run --rm \
+--timeout 15 \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
@@ -60,7 +61,7 @@ for f in /tests/input/*.txt; do
   name=\\$(basename \\$f .txt)
 
   echo 'Running test:' \\$name
-  /code/a.out < \\$f > /code/useroutput-\\$name.txt
+  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt || exit 124
 
   echo 'User Output:'
   cat /code/useroutput-\\$name.txt
@@ -73,36 +74,39 @@ done
 "
 `;
 
-            exec(cmd, async (error, stdout, stderr) => {
-              console.log("STDOUT:", stdout);
-              console.log("STDERR:", stderr);
+            exec(
+              cmd,
+              { timeout: 15000, killSignal: "SIGKILL" },
+              async (error, stdout, stderr) => {
+                console.log("STDOUT:", stdout);
+                console.log("STDERR:", stderr);
 
-              const result = {
-                status: error ? "failed" : "passed",
-                output: stdout,
-                error: stderr,
-              };
+                const isTimeout = error?.killed || error?.code === 124;
 
-              try {
-                console.log(
-                  "Updating DB with result for submissionId:",
-                  job.submissionId,
-                );
-                // if (mongoose.connection.readyState !== 1) {
-                //   throw new Error("Database connection is not established.");
-                // }
-                await Submission.findOneAndUpdate(
-                  { submissionId: job.submissionId },
-                  result,
-                  { new: true },
-                );
-                resolve();
-                console.log("Result saved to DB");
-              } catch (dbErr) {
-                console.error("DB update failed:", dbErr);
-                reject(dbErr);
-              }
-            });
+                const result = {
+                  status: isTimeout ? "timeout" : error ? "failed" : "passed",
+                  output: stdout,
+                  error: isTimeout ? "Time limit exceeded" : stderr,
+                };
+
+                try {
+                  console.log(
+                    "Updating DB with result for submissionId:",
+                    job.submissionId,
+                  );
+                  await Submission.findOneAndUpdate(
+                    { submissionId: job.submissionId },
+                    result,
+                    { new: true },
+                  );
+                  resolve();
+                  console.log("Result saved to DB");
+                } catch (dbErr) {
+                  console.error("DB update failed:", dbErr);
+                  reject(dbErr);
+                }
+              },
+            );
           });
         } catch (err) {
           console.error("Job failed:", err);
