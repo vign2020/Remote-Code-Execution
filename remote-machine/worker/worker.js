@@ -51,7 +51,6 @@ async function pollQueue() {
           await new Promise((resolve, reject) => {
             const cmd = `
 docker run --rm \
---timeout 15 \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
