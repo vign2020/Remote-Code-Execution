@@ -44,14 +44,6 @@ async function pollQueue() {
           const job = JSON.parse(msg.Body);
           const submissionDir = `/tmp/sub-${Date.now()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
-
-          console.log(
-            "submissionDir: and dirname ",
-            submissionDir,
-            " ",
-            __dirname,
-          );
-
           const codePath = path.join(submissionDir, "main.cpp");
           console.log("Code written to file:", codePath);
           fs.writeFileSync(codePath, job.code);
