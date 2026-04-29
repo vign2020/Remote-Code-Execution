@@ -21,6 +21,4 @@ jobs:
           script: |
             cd remote-machine/worker
             git pull origin main
-            docker compose down
-            docker system prune -af
             docker compose up --build -d
