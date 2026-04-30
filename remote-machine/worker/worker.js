@@ -54,7 +54,7 @@ docker run --rm \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
-bash -c "
+bash -c '
 g++ /code/main.cpp -o /code/a.out || exit 1
 
 for f in /tests/input/*.txt; do
@@ -73,7 +73,7 @@ for f in /tests/input/*.txt; do
 
   diff /code/useroutput-$name.txt /tests/output/$name.txt || exit 1
 done
-"
+'
 `;
 
             exec(
