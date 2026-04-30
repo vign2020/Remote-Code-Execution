@@ -56,19 +56,22 @@ docker run --rm \
 gcc:latest \
 bash -c "
 g++ /code/main.cpp -o /code/a.out || exit 1
+
 for f in /tests/input/*.txt; do
-  name=\\$(basename \\$f .txt)
+  name=$(basename $f .txt)
 
-  echo 'Running test:' \\$name
-  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt || exit 124
+  echo "Running test: $name"
 
-  echo 'User Output:'
-  cat /code/useroutput-\\$name.txt
+  timeout 15 /code/a.out < $f > /code/useroutput-$name.txt
+  status=$?
 
-  echo 'Expected Output:'
-  cat /tests/output/\\$name.txt
+  if [ $status -eq 124 ]; then
+    exit 124
+  elif [ $status -ne 0 ]; then
+    exit 2
+  fi
 
-  diff /code/useroutput-\\$name.txt /tests/output/\\$name.txt || exit 1
+  diff /code/useroutput-$name.txt /tests/output/$name.txt || exit 1
 done
 "
 `;
@@ -128,3 +131,6 @@ done
 }
 
 pollQueue();
+
+//to simulate delay in c++
+// this_thread::sleep_for(chrono::seconds(3));\n
