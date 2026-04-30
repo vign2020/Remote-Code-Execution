@@ -71,7 +71,10 @@ for f in /tests/input/*.txt; do
     exit 2
   fi
 
-  diff /code/useroutput-$name.txt /tests/output/$name.txt || exit 1
+  if ! diff /code/useroutput-$name.txt /tests/output/$name.txt; then
+    echo "testcase $name has failed"
+    exit 1
+  fi
 done
 '
 `;
