@@ -54,29 +54,24 @@ docker run --rm \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
-bash -c '
+bash -c "
 g++ /code/main.cpp -o /code/a.out || exit 1
-
 for f in /tests/input/*.txt; do
-  name=$(basename $f .txt)
-
-  echo "Running test: $name"
-
-  timeout 15 /code/a.out < $f > /code/useroutput-$name.txt
-  status=$?
-
-  if [ $status -eq 124 ]; then
+  name=\\$(basename \\$f .txt)
+  echo 'Running test: '\\$name
+  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt
+  status=\\$?
+  if [ \\$status -eq 124 ]; then
     exit 124
-  elif [ $status -ne 0 ]; then
+  elif [ \\$status -ne 0 ]; then
     exit 2
   fi
-
-  if ! diff /code/useroutput-$name.txt /tests/output/$name.txt; then
-    echo "testcase $name has failed"
+  if ! diff /code/useroutput-\\$name.txt /tests/output/\\$name.txt; then
+    echo 'testcase '\\$name' has failed'
     exit 1
   fi
 done
-'
+"
 `;
 
             exec(
