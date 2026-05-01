@@ -54,55 +54,117 @@ docker run --rm \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
-bash -c "
-g++ /code/main.cpp -o /code/a.out || exit 1
+g++ /code/main.cpp -o /code/a.out 2> /code/compile_error.txt
+if [ $? -ne 0 ]; then
+  echo "__COMPILE_ERROR__"
+  cat /code/compile_error.txt
+  exit 100
+fi
+
+tc=1
 for f in /tests/input/*.txt; do
-  name=\\$(basename \\$f .txt)
-  echo 'Running test: '\\$name
-  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt
-  status=\\$?
-  if [ \\$status -eq 124 ]; then
+  name=$(basename $f .txt)
+
+  timeout 15 /code/a.out < $f > /code/useroutput-$name.txt 2> /code/runtime_error.txt
+  status=$?
+
+  if [ $status -eq 124 ]; then
+    echo "__TLE__"
     exit 124
-  elif [ \\$status -ne 0 ]; then
-    exit 2
+  elif [ $status -ne 0 ]; then
+    echo "__RUNTIME_ERROR__"
+    cat /code/runtime_error.txt
+    exit 101
   fi
-  if ! diff /code/useroutput-\\$name.txt /tests/output/\\$name.txt; then
-    echo 'testcase '\\$name' has failed'
-    exit 1
+
+  if ! diff -q /code/useroutput-$name.txt /tests/output/$name.txt > /dev/null; then
+    echo "__WRONG_ANSWER__"
+    echo "Testcase: $tc"
+    echo "Input:"
+    cat $f
+    echo "Expected output:"
+    cat /tests/output/$name.txt
+    echo "Your output:"
+    cat /code/useroutput-$name.txt
+    exit 102
   fi
+
+  tc=$((tc+1))
 done
-"
+
+echo "__ACCEPTED__"
+exit 0
 `;
 
             exec(
               cmd,
-              { timeout: 15000, killSignal: "SIGKILL" },
+              { timeout: 20000, killSignal: "SIGKILL" },
               async (error, stdout, stderr) => {
                 console.log("STDOUT:", stdout);
                 console.log("STDERR:", stderr);
 
-                const isTimeout = error?.killed || error?.code === 124;
+                let status = "error";
+                let errorMsg = "";
+                let output = stdout;
+
+                if (stdout.includes("__COMPILE_ERROR__")) {
+                  status = "Compile time error";
+                  errorMsg = stdout.replace("__COMPILE_ERROR__", "").trim();
+                } else if (stdout.includes("__TLE__") || error?.code === 124) {
+                  status = "tle";
+                  errorMsg = "Time limit exceeded";
+                } else if (stdout.includes("__RUNTIME_ERROR__")) {
+                  status = "run time error";
+                  errorMsg = stdout.replace("__RUNTIME_ERROR__", "").trim();
+                } else if (stdout.includes("__WRONG_ANSWER__")) {
+                  status = "Wrong answer";
+
+                  const lines = stdout.split("\n");
+
+                  const tcLine = lines.find((l) => l.startsWith("Testcase:"));
+                  const tcNo = tcLine ? tcLine.split(":")[1].trim() : "?";
+
+                  const inputIdx = lines.indexOf("Input:");
+                  const expectedIdx = lines.indexOf("Expected output:");
+                  const yourIdx = lines.indexOf("Your output:");
+
+                  const input = lines
+                    .slice(inputIdx + 1, expectedIdx)
+                    .join("\n");
+                  const expected = lines
+                    .slice(expectedIdx + 1, yourIdx)
+                    .join("\n");
+                  const your = lines.slice(yourIdx + 1).join("\n");
+
+                  errorMsg = `Wrong answer for testcase ${tcNo}
+Input:
+${input}
+Expected output:
+${expected}
+Your output:
+${your}`;
+                } else if (stdout.includes("__ACCEPTED__")) {
+                  status = "Accepted";
+                  errorMsg = "";
+                } else if (error) {
+                  status = "error";
+                  errorMsg = stderr || "Unknown error";
+                }
 
                 const result = {
-                  status: isTimeout ? "timeout" : error ? "failed" : "passed",
-                  output: stdout,
-                  error: isTimeout ? "Time limit exceeded" : stderr,
+                  status,
+                  output,
+                  error: errorMsg,
                 };
 
                 try {
-                  console.log(
-                    "Updating DB with result for submissionId:",
-                    job.submissionId,
-                  );
                   await Submission.findOneAndUpdate(
                     { submissionId: job.submissionId },
                     result,
                     { new: true },
                   );
                   resolve();
-                  console.log("Result saved to DB");
                 } catch (dbErr) {
-                  console.error("DB update failed:", dbErr);
                   reject(dbErr);
                 }
               },
