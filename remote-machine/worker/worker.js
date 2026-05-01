@@ -42,7 +42,7 @@ async function pollQueue() {
       for (const msg of response.Messages) {
         try {
           const job = JSON.parse(msg.Body);
-          const submissionDir = `/tmp/sub-${submissionId}`;
+          const submissionDir = `/tmp/sub-${Date.now()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
           const codePath = path.join(submissionDir, "main.cpp");
           console.log("Code written to file:", codePath);
@@ -54,46 +54,47 @@ docker run --rm \
 -v ${submissionDir}:/code \
 -v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
-g++ /code/main.cpp -o /code/a.out 2> /code/compile_error.txt
-if [ $? -ne 0 ]; then
-  echo "__COMPILE_ERROR__"
+bash -c "
+g++ /code/main.cpp -o /code/a.out 2>/code/compile_error.txt
+if [ \\$? -ne 0 ]; then
+  echo '__COMPILE_ERROR__'
   cat /code/compile_error.txt
   exit 100
 fi
 
 tc=1
 for f in /tests/input/*.txt; do
-  name=$(basename $f .txt)
+  name=\\$(basename \\$f .txt)
+  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt 2>/code/runtime_error.txt
+  status=\\$?
 
-  timeout 15 /code/a.out < $f > /code/useroutput-$name.txt 2> /code/runtime_error.txt
-  status=$?
-
-  if [ $status -eq 124 ]; then
-    echo "__TLE__"
+  if [ \\$status -eq 124 ]; then
+    echo '__TLE__'
     exit 124
-  elif [ $status -ne 0 ]; then
-    echo "__RUNTIME_ERROR__"
+  elif [ \\$status -ne 0 ]; then
+    echo '__RUNTIME_ERROR__'
     cat /code/runtime_error.txt
     exit 101
   fi
 
-  if ! diff -q /code/useroutput-$name.txt /tests/output/$name.txt > /dev/null; then
-    echo "__WRONG_ANSWER__"
-    echo "Testcase: $tc"
-    echo "Input:"
-    cat $f
-    echo "Expected output:"
-    cat /tests/output/$name.txt
-    echo "Your output:"
-    cat /code/useroutput-$name.txt
+  if ! diff -q /code/useroutput-\\$name.txt /tests/output/\\$name.txt > /dev/null; then
+    echo '__WRONG_ANSWER__'
+    echo 'Testcase: '\\$tc
+    echo 'Input:'
+    cat \\$f
+    echo 'Expected output:'
+    cat /tests/output/\\$name.txt
+    echo 'Your output:'
+    cat /code/useroutput-\\$name.txt
     exit 102
   fi
 
-  tc=$((tc+1))
+  tc=\\$((tc+1))
 done
 
-echo "__ACCEPTED__"
+echo '__ACCEPTED__'
 exit 0
+"
 `;
 
             exec(
