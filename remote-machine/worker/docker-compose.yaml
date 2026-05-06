@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    restart: unless-stopped
     environment:
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - AWS_REGION=${AWS_REGION}
