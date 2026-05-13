@@ -1,17 +1,19 @@
+/** @format */
+
 import app from "./app.js";
 import config from "./config/config.js";
-
 import connectDB from "./db.js";
+import startRedis from "./redis.js";
 // import { createClient } from "redis";
 
 // export const redis = createClient();
 
 // await redis.connect();
 
-const  startServer = (async () => {
+const startServer = (async () => {
+  await connectDB();
 
-await connectDB();
-app.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`);
-})
+  app.listen(config.port, () => {
+    console.log(`Server running on port ${config.port}`);
+  });
 })();

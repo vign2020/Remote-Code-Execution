@@ -48,11 +48,27 @@ async function pollQueue() {
           console.log("Code written to file:", codePath);
           fs.writeFileSync(codePath, job.code);
 
+          //get the testcases.
+          const testCases = await getTestCases(job.contestNo, job.problemId);
+
+          //inserting the testcases into submissionsDir/
+          const inputDir = `${submissionDir}/input`;
+          const outputDir = `${submissionDir}/output`;
+          fs.mkdirSync(inputDir, { recursive: true });
+          fs.mkdirSync(outputDir, { recursive: true });
+
+          for (const input of testCases.inputs) {
+            fs.writeFileSync(`${inputDir}/${input.name}`, input.content);
+          }
+
+          for (const output of testCases.outputs) {
+            fs.writeFileSync(`${outputDir}/${output.name}`, output.content);
+          }
+
           await new Promise((resolve, reject) => {
             const cmd = `
 docker run --rm \
 -v ${submissionDir}:/code \
--v /home/ubuntu/contest-data/contest-${job.contestNo}/problem-${job.problemId}:/tests \
 gcc:latest \
 bash -c "
 g++ /code/main.cpp -o /code/a.out 2>/code/compile_error.txt
@@ -63,7 +79,7 @@ if [ \\$? -ne 0 ]; then
 fi
 
 tc=1
-for f in /tests/input/*.txt; do
+for f in /code/input/*.txt; do
   name=\\$(basename \\$f .txt)
   timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt 2>/code/runtime_error.txt
   status=\\$?
@@ -77,13 +93,13 @@ for f in /tests/input/*.txt; do
     exit 101
   fi
 
-  if ! diff -q /code/useroutput-\\$name.txt /tests/output/\\$name.txt > /dev/null; then
+  if ! diff -q /code/useroutput-\\$name.txt /code/output/\\$name.txt > /dev/null; then
     echo '__WRONG_ANSWER__'
     echo 'Testcase: '\\$tc
     echo 'Input:'
     cat \\$f
     echo 'Expected output:'
-    cat /tests/output/\\$name.txt
+    cat /code/output/\\$name.txt
     echo 'Your output:'
     cat /code/useroutput-\\$name.txt
     exit 102

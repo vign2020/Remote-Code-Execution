@@ -5,6 +5,7 @@ import bodyParser from "body-parser";
 
 import dotenv from "dotenv";
 import connectDB from "./worker/db.js";
+import { startRedis } from "./worker/redis.js";
 
 dotenv.config();
 const PORT = process.env.PORT || 8000;
@@ -22,6 +23,8 @@ app.get("/health", (req, res) => {
 
 const startServer = (async () => {
   await connectDB();
+  await startRedis();
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
   });

@@ -12,9 +12,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/client-sqs": "^3.985.0",
+    "@upstash/redis": "^1.38.0",
     "body-parser": "^2.2.2",
-    "cors": "^2.8.6"
+    "cors": "^2.8.6",
+    "mongoose": "^9.6.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

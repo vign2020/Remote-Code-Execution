@@ -5,6 +5,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.1014.0",
+    "@upstash/redis": "^1.38.0",
     "dotenv": "^17.3.1",
     "expres": "^0.0.5",
     "express": "^5.2.1",
