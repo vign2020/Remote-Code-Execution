@@ -1,6 +1,6 @@
 /** @format */
 
-import redis from "./redis";
+import redis from "./redis.js";
 import {
   S3Client,
   GetObjectCommand,

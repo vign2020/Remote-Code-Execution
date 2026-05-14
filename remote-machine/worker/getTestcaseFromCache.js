@@ -1,6 +1,6 @@
 /** @format */
 
-import redis from "../redis.js";
+import redis from "./redis.js";
 import { getFroms3 } from "./getFroms3.js";
 
 export const getTestcaseFromCache = async (contestId, problemId) => {
