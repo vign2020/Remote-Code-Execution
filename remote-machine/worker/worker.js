@@ -11,6 +11,7 @@ import path from "path";
 import dotenv from "dotenv";
 import Submission from "./models/Submission.js";
 import connectDB from "./db.js";
+import getTestcaseFromCache from "./getTestcaseFromCache.js";
 
 dotenv.config();
 
@@ -49,7 +50,10 @@ async function pollQueue() {
           fs.writeFileSync(codePath, job.code);
 
           //get the testcases.
-          const testCases = await getTestCases(job.contestNo, job.problemId);
+          const testCases = await getTestcaseFromCache(
+            job.contestNo,
+            job.problemId,
+          );
 
           //inserting the testcases into submissionsDir/
           const inputDir = `${submissionDir}/input`;
