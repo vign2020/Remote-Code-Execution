@@ -119,7 +119,7 @@ exit 0
 
             exec(
               cmd,
-              { timeout: 20000, killSignal: "SIGKILL" },
+              { timeout: 30000, killSignal: "SIGKILL" },
               async (error, stdout, stderr) => {
                 console.log("STDOUT:", stdout);
                 console.log("STDERR:", stderr);
