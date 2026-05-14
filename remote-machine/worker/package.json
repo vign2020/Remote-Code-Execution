@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1046.0",
     "@aws-sdk/client-sqs": "^3.985.0",
     "dotenv": "^17.3.1",
     "mongoose": "^9.3.3"

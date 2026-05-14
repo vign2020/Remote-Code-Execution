@@ -11,7 +11,7 @@ import path from "path";
 import dotenv from "dotenv";
 import Submission from "./models/Submission.js";
 import connectDB from "./db.js";
-import getTestcaseFromCache from "./getTestcaseFromCache.js";
+import { getTestcaseFromCache } from "./getTestcaseFromCache.js";
 
 dotenv.config();
 

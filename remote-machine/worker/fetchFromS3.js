@@ -10,7 +10,7 @@ import {
 const s3 = new S3Client({ region: process.env.AWS_REGION });
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
-const fetchFromS3 = async (contestId, problemId) => {
+export const fetchFromS3 = async (contestId, problemId) => {
   const inputs = [];
   const outputs = [];
 

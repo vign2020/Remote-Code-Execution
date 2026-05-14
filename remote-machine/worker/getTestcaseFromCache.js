@@ -1,7 +1,7 @@
 /** @format */
 
 import redis from "./redis.js";
-import { getFroms3 } from "./getFroms3.js";
+import { fetchFromS3 } from "./fetchFromS3.js";
 
 export const getTestcaseFromCache = async (contestId, problemId) => {
   const cacheKey = `contest:${contestId}:problem:${problemId}:testcases`;
@@ -17,7 +17,7 @@ export const getTestcaseFromCache = async (contestId, problemId) => {
   }
 
   console.log("Cache miss — fetching from S3");
-  const testCases = await getFroms3(contestId, problemId);
+  const testCases = await fetchFromS3(contestId, problemId);
 
   try {
     await redis.set(cacheKey, testCases, { ex: 86400 });
