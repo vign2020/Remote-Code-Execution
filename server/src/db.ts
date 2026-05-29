@@ -1,3 +1,5 @@
+/** @format */
+
 import mongoose from "mongoose";
 
 const MONGO_URI = process.env.MONGO_URI as string;
@@ -12,4 +14,4 @@ async function connectDB() {
   }
 }
 
-export  default connectDB;
+export default connectDB;

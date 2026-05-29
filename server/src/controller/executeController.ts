@@ -1,3 +1,5 @@
+/** @format */
+
 import type { Request, Response } from "express";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import Submission from "../models/Submissions.js";
@@ -8,8 +10,16 @@ const QUEUE_URL = "https://sqs.ap-south-1.amazonaws.com/905418039311/rce-queue";
 
 export const executeController = async (req: Request, res: Response) => {
   const { language, code, problemId, contestNo } = req.body;
+
+  console.log("Received execute request with data:", {
+    language,
+    code,
+    problemId,
+    contestNo,
+  });
   const submissionId = Date.now(); // generate a unique submission id
 
+  console.log("INSIDE EXECUTE CONTROLLER");
   try {
     // Ensure MongoDB connection is ready
     if (mongoose.connection.readyState !== 1) {
@@ -24,7 +34,7 @@ export const executeController = async (req: Request, res: Response) => {
 
     await newSubmission.save();
 
-    console.log("Submission recorded in DB with ID:", newSubmission);
+    console.log("Submission recorded in DB with ID:", { data: newSubmission });
 
     await client.send(
       new SendMessageCommand({
@@ -36,11 +46,15 @@ export const executeController = async (req: Request, res: Response) => {
           code: code,
           contestNo: contestNo,
         }),
-      })
+      }),
     );
 
     console.log("Job sent!");
-    res.status(200).json({ message: "Item pushed to the queue!" });
+    res.status(200).json({
+      message: "Item pushed to the queue!",
+      newSubmission: newSubmission,
+      submissionId: submissionId,
+    });
   } catch (e) {
     console.error("Error in executeController:", e);
     const errorMessage =
