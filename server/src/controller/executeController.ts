@@ -11,12 +11,12 @@ const QUEUE_URL = "https://sqs.ap-south-1.amazonaws.com/905418039311/rce-queue";
 export const executeController = async (req: Request, res: Response) => {
   const { language, code, problemId, contestNo } = req.body;
 
-  console.log("Received execute request with data:", {
-    language,
-    code,
-    problemId,
-    contestNo,
-  });
+  // console.log("Received execute request with data:", {
+  //   language,
+  //   code,
+  //   problemId,
+  //   contestNo,
+  // });
   const submissionId = Date.now(); // generate a unique submission id
 
   console.log("INSIDE EXECUTE CONTROLLER");

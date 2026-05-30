@@ -8,12 +8,12 @@ export default async function contestShowController(
 ) {
   const { contestSlug, problemSlug } = req.params;
 
-  console.log(
-    "Received request for contest:",
-    contestSlug,
-    "problem:",
-    problemSlug,
-  );
+  // console.log(
+  //   "Received request for contest:",
+  //   contestSlug,
+  //   "problem:",
+  //   problemSlug,
+  // );
 
   if (!contestSlug || !problemSlug) {
     return res

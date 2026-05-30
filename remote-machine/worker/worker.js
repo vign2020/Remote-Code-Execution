@@ -129,16 +129,16 @@ exit 0
                 let output = stdout;
 
                 if (stdout.includes("__COMPILE_ERROR__")) {
-                  status = "Compile time error";
+                  status = "COMPILE ERROR";
                   errorMsg = stdout.replace("__COMPILE_ERROR__", "").trim();
                 } else if (stdout.includes("__TLE__") || error?.code === 124) {
-                  status = "tle";
+                  status = "TLE";
                   errorMsg = "Time limit exceeded";
                 } else if (stdout.includes("__RUNTIME_ERROR__")) {
-                  status = "run time error";
+                  status = "RUN TIME ERROR";
                   errorMsg = stdout.replace("__RUNTIME_ERROR__", "").trim();
                 } else if (stdout.includes("__WRONG_ANSWER__")) {
-                  status = "Wrong answer";
+                  status = "WRONG ANSWER";
 
                   const lines = stdout.split("\n");
 
@@ -165,7 +165,7 @@ ${expected}
 Your output:
 ${your}`;
                 } else if (stdout.includes("__ACCEPTED__")) {
-                  status = "Accepted";
+                  status = "ACCEPTED";
                   errorMsg = "";
                 } else if (error) {
                   status = "error";
