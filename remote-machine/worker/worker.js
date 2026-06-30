@@ -73,9 +73,9 @@ async function pollQueue() {
             const cmd = `
 docker run --rm \
 --network none \
---memory 128m \
---cpus 0.5 \
---pids-limit 50 \
+--memory 512m \
+--cpus 1.0 \
+--pids-limit 200 \
 -v ${submissionDir}:/code \
 gcc:latest \
 bash -c "
