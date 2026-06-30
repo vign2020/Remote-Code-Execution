@@ -49,7 +49,7 @@ async function pollQueue() {
           console.log("Code written to file:", codePath);
           fs.writeFileSync(codePath, job.code);
 
-          //get the testcases.
+          //fetching the testcases from cache
           const testCases = await getTestcaseFromCache(
             job.contestNo,
             job.problemId,
@@ -72,6 +72,10 @@ async function pollQueue() {
           await new Promise((resolve, reject) => {
             const cmd = `
 docker run --rm \
+--network none \
+--memory 128m \
+--cpus 0.5 \
+--pids-limit 50 \
 -v ${submissionDir}:/code \
 gcc:latest \
 bash -c "
