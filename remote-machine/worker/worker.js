@@ -26,6 +26,7 @@ async function pollQueue() {
   await connectDB();
   while (true) {
     try {
+      const tReceiveStart = performance.now();
       const command = new ReceiveMessageCommand({
         QueueUrl: QUEUE_URL,
         MaxNumberOfMessages: 1,
@@ -34,6 +35,7 @@ async function pollQueue() {
       });
 
       const response = await client.send(command);
+      const tReceiveEnd = performance.now();
 
       if (!response.Messages) {
         console.log("No messages...");
@@ -41,21 +43,33 @@ async function pollQueue() {
       }
 
       for (const msg of response.Messages) {
+        // timing accumulators for this submission
+        const timings = {
+          receiveSQS: tReceiveEnd - tReceiveStart,
+          redisFetch: 0,
+          fsWrites: 0,
+          dockerRun: 0,
+          mongoUpdate: 0,
+          deleteSQS: 0,
+        };
+
         try {
           const job = JSON.parse(msg.Body);
           const submissionDir = `/tmp/sub-${Date.now()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
           const codePath = path.join(submissionDir, "main.cpp");
-          console.log("Code written to file:", codePath);
           fs.writeFileSync(codePath, job.code);
 
-          //fetching the testcases from cache
+          // --- Redis fetch ---
+          const tRedisStart = performance.now();
           const testCases = await getTestcaseFromCache(
             job.contestNo,
             job.problemId,
           );
+          timings.redisFetch = performance.now() - tRedisStart;
 
-          //inserting the testcases into submissionsDir/
+          // --- Filesystem writes ---
+          const tFsStart = performance.now();
           const inputDir = `${submissionDir}/input`;
           const outputDir = `${submissionDir}/output`;
           fs.mkdirSync(inputDir, { recursive: true });
@@ -64,11 +78,13 @@ async function pollQueue() {
           for (const input of testCases.inputs) {
             fs.writeFileSync(`${inputDir}/${input.name}`, input.content);
           }
-
           for (const output of testCases.outputs) {
             fs.writeFileSync(`${outputDir}/${output.name}`, output.content);
           }
+          timings.fsWrites = performance.now() - tFsStart;
 
+          // --- Docker + Compile + Run ---
+          const tDockerStart = performance.now();
           await new Promise((resolve, reject) => {
             const cmd = `
 docker run --rm \
@@ -125,8 +141,7 @@ exit 0
               cmd,
               { timeout: 30000, killSignal: "SIGKILL" },
               async (error, stdout, stderr) => {
-                console.log("STDOUT:", stdout);
-                console.log("STDERR:", stderr);
+                timings.dockerRun = performance.now() - tDockerStart;
 
                 let status = "error";
                 let errorMsg = "";
@@ -145,14 +160,11 @@ exit 0
                   status = "WRONG ANSWER";
 
                   const lines = stdout.split("\n");
-
                   const tcLine = lines.find((l) => l.startsWith("Testcase:"));
                   const tcNo = tcLine ? tcLine.split(":")[1].trim() : "?";
-
                   const inputIdx = lines.indexOf("Input:");
                   const expectedIdx = lines.indexOf("Expected output:");
                   const yourIdx = lines.indexOf("Your output:");
-
                   const input = lines
                     .slice(inputIdx + 1, expectedIdx)
                     .join("\n");
@@ -176,20 +188,20 @@ ${your}`;
                   errorMsg = stderr || "Unknown error";
                 }
 
-                const result = {
-                  status,
-                  output,
-                  error: errorMsg,
-                };
+                const result = { status, output, error: errorMsg };
 
+                // --- Mongo update ---
+                const tMongoStart = performance.now();
                 try {
                   await Submission.findOneAndUpdate(
                     { submissionId: job.submissionId },
                     result,
                     { new: true },
                   );
+                  timings.mongoUpdate = performance.now() - tMongoStart;
                   resolve();
                 } catch (dbErr) {
+                  timings.mongoUpdate = performance.now() - tMongoStart;
                   reject(dbErr);
                 }
               },
@@ -198,15 +210,37 @@ ${your}`;
         } catch (err) {
           console.error("Job failed:", err);
         } finally {
-          // delete message so old jobs don't repeat
+          // --- Delete SQS ---
+          const tDeleteStart = performance.now();
           await client.send(
             new DeleteMessageCommand({
               QueueUrl: QUEUE_URL,
               ReceiptHandle: msg.ReceiptHandle,
             }),
           );
+          timings.deleteSQS = performance.now() - tDeleteStart;
 
-          console.log("Message deleted from queue");
+          // --- Print timing breakdown ---
+          const total =
+            timings.receiveSQS +
+            timings.redisFetch +
+            timings.fsWrites +
+            timings.dockerRun +
+            timings.mongoUpdate +
+            timings.deleteSQS;
+
+          const fmt = (label, ms) =>
+            `${label.padEnd(24)} ${ms.toFixed(0).padStart(5)} ms`;
+
+          console.log("\n--- Timing Breakdown ---");
+          console.log(fmt("Receive SQS:", timings.receiveSQS));
+          console.log(fmt("Redis fetch:", timings.redisFetch));
+          console.log(fmt("Filesystem writes:", timings.fsWrites));
+          console.log(fmt("Docker + Compile + Run:", timings.dockerRun));
+          console.log(fmt("Mongo update:", timings.mongoUpdate));
+          console.log(fmt("Delete SQS:", timings.deleteSQS));
+          console.log(fmt("TOTAL:", total));
+          console.log("------------------------\n");
         }
       }
     } catch (err) {
