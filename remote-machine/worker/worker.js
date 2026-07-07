@@ -53,6 +53,11 @@ async function pollQueue() {
           deleteSQS: 0,
         };
 
+        // declare these in outer scope so they're accessible in finally
+        let compileTime = 0;
+        let executionTime = 0;
+        let dockerOverhead = 0;
+
         try {
           const job = JSON.parse(msg.Body);
           const submissionDir = `/tmp/sub-${Date.now()}`;
@@ -95,53 +100,53 @@ docker run --rm \
 -v ${submissionDir}:/code \
 gcc:latest \
 bash -c "
-
-COMPILE_START=\$(date +%s%3N)
+COMPILE_START=\\$(date +%s%3N)
 
 g++ /code/main.cpp -o /code/a.out 2>/code/compile_error.txt
 
-COMPILE_END=\$(date +%s%3N)
-echo '__COMPILE_TIME__:'\$((COMPILE_END-COMPILE_START))
+COMPILE_END=\\$(date +%s%3N)
+echo '__COMPILE_TIME__:'\\$((COMPILE_END-COMPILE_START))
 
-if [ \$? -ne 0 ]; then
+if [ \\$? -ne 0 ]; then
   echo '__COMPILE_ERROR__'
   cat /code/compile_error.txt
   exit 100
 fi
 
 tc=1
-
 for f in /code/input/*.txt; do
+  EXEC_START=\\$(date +%s%3N)
 
-  EXEC_START=\$(date +%s%3N)
+  name=\\$(basename \\$f .txt)
+  timeout 15 /code/a.out < \\$f > /code/useroutput-\\$name.txt 2>/code/runtime_error.txt
 
-  name=\$(basename \$f .txt)
+  EXEC_END=\\$(date +%s%3N)
+  echo '__EXECUTION_TIME__:'\\$((EXEC_END-EXEC_START))
 
-  timeout 15 /code/a.out < \$f > /code/useroutput-\$name.txt 2>/code/runtime_error.txt
+  status=\\$?
 
-  EXEC_END=\$(date +%s%3N)
-
-  echo '__EXECUTION_TIME__:'\$((EXEC_END-EXEC_START))
-
-  status=\$?
-
-  if [ \$status -eq 124 ]; then
-      echo '__TLE__'
-      exit 124
-  elif [ \$status -ne 0 ]; then
-      echo '__RUNTIME_ERROR__'
-      cat /code/runtime_error.txt
-      exit 101
+  if [ \\$status -eq 124 ]; then
+    echo '__TLE__'
+    exit 124
+  elif [ \\$status -ne 0 ]; then
+    echo '__RUNTIME_ERROR__'
+    cat /code/runtime_error.txt
+    exit 101
   fi
 
-  if ! diff -q /code/useroutput-\$name.txt /code/output/\$name.txt >/dev/null; then
-      echo '__WRONG_ANSWER__'
-      ...
-      exit 102
+  if ! diff -q /code/useroutput-\\$name.txt /code/output/\\$name.txt > /dev/null; then
+    echo '__WRONG_ANSWER__'
+    echo 'Testcase: '\\$tc
+    echo 'Input:'
+    cat \\$f
+    echo 'Expected output:'
+    cat /code/output/\\$name.txt
+    echo 'Your output:'
+    cat /code/useroutput-\\$name.txt
+    exit 102
   fi
 
-  tc=\$((tc+1))
-
+  tc=\\$((tc+1))
 done
 
 echo '__ACCEPTED__'
@@ -159,6 +164,7 @@ exit 0
                 let errorMsg = "";
                 let output = stdout;
 
+                // --- Parse stdout for status ---
                 if (stdout.includes("__COMPILE_ERROR__")) {
                   status = "COMPILE ERROR";
                   errorMsg = stdout.replace("__COMPILE_ERROR__", "").trim();
@@ -199,6 +205,25 @@ ${your}`;
                   status = "error";
                   errorMsg = stderr || "Unknown error";
                 }
+
+                // --- Parse compile and execution times from stdout ---
+                const compileMatch = stdout.match(/__COMPILE_TIME__:(\d+)/);
+                if (compileMatch) {
+                  compileTime = Number(compileMatch[1]);
+                }
+
+                const execMatches = [
+                  ...stdout.matchAll(/__EXECUTION_TIME__:(\d+)/g),
+                ];
+                if (execMatches.length > 0) {
+                  executionTime = execMatches.reduce(
+                    (sum, match) => sum + Number(match[1]),
+                    0,
+                  );
+                }
+
+                dockerOverhead =
+                  timings.dockerRun - compileTime - executionTime;
 
                 const result = { status, output, error: errorMsg };
 
@@ -241,26 +266,6 @@ ${your}`;
             timings.mongoUpdate +
             timings.deleteSQS;
 
-          let compileTime = 0;
-          let executionTime = 0;
-
-          const compileMatch = stdout.match(/__COMPILE_TIME__:(\d+)/);
-          if (compileMatch) {
-            compileTime = Number(compileMatch[1]);
-          }
-
-          const execMatches = [...stdout.matchAll(/__EXECUTION_TIME__:(\d+)/g)];
-
-          if (execMatches.length > 0) {
-            executionTime = execMatches.reduce(
-              (sum, match) => sum + Number(match[1]),
-              0,
-            );
-          }
-
-          const dockerOverhead =
-            timings.dockerRun - compileTime - executionTime;
-
           const fmt = (label, ms) =>
             `${label.padEnd(24)} ${ms.toFixed(0).padStart(5)} ms`;
 
@@ -269,9 +274,9 @@ ${your}`;
           console.log(fmt("Redis fetch:", timings.redisFetch));
           console.log(fmt("Filesystem writes:", timings.fsWrites));
           console.log(fmt("Docker total:", timings.dockerRun));
-          console.log(fmt("Compile:", compileTime));
-          console.log(fmt("Execution:", executionTime));
-          console.log(fmt("Docker overhead:", dockerOverhead));
+          console.log(fmt("  Compile:", compileTime));
+          console.log(fmt("  Execution:", executionTime));
+          console.log(fmt("  Overhead:", dockerOverhead));
           console.log(fmt("Mongo update:", timings.mongoUpdate));
           console.log(fmt("Delete SQS:", timings.deleteSQS));
           console.log(fmt("TOTAL:", total));
