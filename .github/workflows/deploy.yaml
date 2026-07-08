@@ -19,8 +19,15 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd remote-machine/worker
-            echo "Freeing disk space..."
-            docker system prune -af --volumes
-            docker image prune -af
             git pull origin main
+            docker build -f Dockerfile.gcc -t cp-judge-gcc:latest .
+            docker system prune -af
             docker compose up --build -d
+
+    # script: |
+    #         cd remote-machine/worker
+    #         echo "Freeing disk space..."
+    #         docker system prune -af --volumes
+    #         docker image prune -af
+    #         git pull origin main
+    #         docker compose up --build -d

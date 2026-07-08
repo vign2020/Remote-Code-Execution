@@ -1,0 +1,4 @@
+FROM gcc:latest
+
+RUN g++ -std=c++17 -x c++-header /usr/include/x86_64-linux-gnu/c++/*/bits/stdc++.h \
+    -o /usr/include/x86_64-linux-gnu/c++/*/bits/stdc++.h.gch

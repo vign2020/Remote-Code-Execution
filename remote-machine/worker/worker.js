@@ -98,7 +98,7 @@ docker run --rm \
 --cpus 1.0 \
 --pids-limit 200 \
 -v ${submissionDir}:/code \
-gcc:latest \
+cp-judge-gcc:latest \
 bash -c "
 COMPILE_START=\\$(date +%s%3N)
 
