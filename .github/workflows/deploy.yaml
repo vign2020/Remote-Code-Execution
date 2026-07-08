@@ -20,8 +20,8 @@ jobs:
           script: |
             cd remote-machine/worker
             git pull origin main
-            docker build -f Dockerfile.gcc -t cp-judge-gcc:latest .
             docker system prune -af
+            docker build -f Dockerfile.gcc -t cp-judge-gcc:latest .
             docker compose down
             docker compose up --build -d
 
