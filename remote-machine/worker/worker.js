@@ -102,7 +102,7 @@ cp-judge-gcc:latest \
 bash -c "
 COMPILE_START=\\$(date +%s%3N)
 
-g++ -O0 /code/main.cpp -o /code/a.out 2>/code/compile_error.txt
+g++ -std=c++17 -O0 /code/main.cpp -o /code/a.out 2>/code/compile_error.txt
 
 COMPILE_END=\\$(date +%s%3N)
 echo '__COMPILE_TIME__:'\\$((COMPILE_END-COMPILE_START))
