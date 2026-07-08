@@ -14,5 +14,5 @@ async function connectDB() {
     process.exit(1);
   }
 }
-
+//added line to check for working of git hub actions
 export default connectDB;
