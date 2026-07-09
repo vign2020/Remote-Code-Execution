@@ -31,7 +31,7 @@ async function pollQueue() {
       const tReceiveStart = performance.now();
       const command = new ReceiveMessageCommand({
         QueueUrl: QUEUE_URL,
-        MaxNumberOfMessages: 1,
+        MaxNumberOfMessages: 5,
         WaitTimeSeconds: 20,
         VisibilityTimeout: 120,
       });
