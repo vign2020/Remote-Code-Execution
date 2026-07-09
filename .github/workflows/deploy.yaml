@@ -23,7 +23,7 @@ jobs:
             docker system prune -af
             docker build -f Dockerfile.gcc -t cp-judge-gcc:latest .
             docker compose down
-            docker compose up --build -d
+            docker compose up --build -d --scale app=2
 
     # script: |
     #         cd remote-machine/worker

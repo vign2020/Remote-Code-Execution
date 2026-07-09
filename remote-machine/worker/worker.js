@@ -12,6 +12,8 @@ import dotenv from "dotenv";
 import Submission from "./models/Submission.js";
 import connectDB from "./db.js";
 import { getTestcaseFromCache } from "./getTestcaseFromCache.js";
+import os from "os";
+import { randomUUID } from "crypto";
 
 dotenv.config();
 
@@ -33,6 +35,7 @@ async function pollQueue() {
         WaitTimeSeconds: 20,
         VisibilityTimeout: 120,
       });
+      console.log(`Worker started: ${os.hostname()}`);
 
       const response = await client.send(command);
       const tReceiveEnd = performance.now();
@@ -60,7 +63,7 @@ async function pollQueue() {
 
         try {
           const job = JSON.parse(msg.Body);
-          const submissionDir = `/tmp/sub-${Date.now()}`;
+          const submissionDir = `/tmp/sub-${randomUUID()}`;
           fs.mkdirSync(submissionDir, { recursive: true });
           const codePath = path.join(submissionDir, "main.cpp");
           fs.writeFileSync(codePath, job.code);
