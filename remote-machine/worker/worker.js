@@ -73,7 +73,7 @@ async function processSubmission(msg) {
 docker run --rm \
 --network none \
 --memory 512m \
---cpus 1.0 \
+--cpus 0.5 \
 --pids-limit 200 \
 -v ${submissionDir}:/code \
 cp-judge-gcc:latest \
