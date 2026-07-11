@@ -241,7 +241,7 @@ ${your}`;
   }
 }
 
-const MAX_CONCURRENCY = 5; // per worker process
+const MAX_CONCURRENCY = 2; // per worker process
 let activeCount = 0;
 
 async function pollQueue() {
