@@ -241,26 +241,35 @@ ${your}`;
   }
 }
 
+const MAX_CONCURRENCY = 5; // per worker process
+let activeCount = 0;
+
 async function pollQueue() {
   await connectDB();
   while (true) {
     try {
+      if (activeCount >= MAX_CONCURRENCY) {
+        await new Promise((r) => setTimeout(r, 50)); // brief backoff, avoid busy-loop
+        continue;
+      }
+
       const command = new ReceiveMessageCommand({
         QueueUrl: QUEUE_URL,
-        MaxNumberOfMessages: 5, // pull up to 5 messages per poll
-        WaitTimeSeconds: 20,
+        MaxNumberOfMessages: Math.min(5, MAX_CONCURRENCY - activeCount),
+        WaitTimeSeconds: 5, // shorter wait since we're polling in a tight loop now
         VisibilityTimeout: 120,
       });
 
       const response = await client.send(command);
+      if (!response.Messages) continue;
 
-      if (!response.Messages) {
-        console.log("No messages...");
-        continue;
+      // fire and forget — do NOT await here
+      for (const msg of response.Messages) {
+        activeCount++;
+        processSubmission(msg).finally(() => {
+          activeCount--;
+        });
       }
-
-      // process all received messages concurrently
-      await Promise.all(response.Messages.map((msg) => processSubmission(msg)));
     } catch (err) {
       console.error("Queue polling error:", err);
     }
