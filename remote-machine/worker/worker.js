@@ -29,6 +29,15 @@ const execAsync = util.promisify(exec);
 const POOL_SIZE = 2; // match your MAX_CONCURRENCY
 const pool = [];
 
+// docker-compose runs this worker at --scale app=2, so multiple replicas
+// share the same host /tmp and the same docker daemon. Without a per-replica
+// namespace, both replicas would create identically-named pool containers
+// bind-mounted to identically-named host directories and stomp on each
+// other's in-flight submissions. Docker gives each container a hostname
+// equal to its own (unique) short container ID by default, so it doubles
+// as a stable, collision-free instance id here.
+const INSTANCE_ID = os.hostname();
+
 const poolHostDir = (name) => `/tmp/${name}-code`;
 
 async function startPoolContainer(name) {
@@ -41,7 +50,7 @@ async function startPoolContainer(name) {
 
 async function initPool() {
   for (let i = 0; i < POOL_SIZE; i++) {
-    const name = `pool-worker-${i}`;
+    const name = `${INSTANCE_ID}-pool-worker-${i}`;
     try {
       await execAsync(`docker rm -f ${name}`);
     } catch (e) {
