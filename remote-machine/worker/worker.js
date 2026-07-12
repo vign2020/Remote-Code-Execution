@@ -29,6 +29,16 @@ const execAsync = util.promisify(exec);
 const POOL_SIZE = 2; // match your MAX_CONCURRENCY
 const pool = [];
 
+const poolHostDir = (name) => `/tmp/${name}-code`;
+
+async function startPoolContainer(name) {
+  const hostDir = poolHostDir(name);
+  fs.mkdirSync(hostDir, { recursive: true });
+  await execAsync(
+    `docker run -d --name ${name} --network none --memory 512m --cpus 1.0 --pids-limit 200 -v ${hostDir}:/code cp-judge-gcc:latest tail -f /dev/null`,
+  );
+}
+
 async function initPool() {
   for (let i = 0; i < POOL_SIZE; i++) {
     const name = `pool-worker-${i}`;
@@ -37,10 +47,8 @@ async function initPool() {
     } catch (e) {
       // container didn't exist, fine
     }
-    await execAsync(
-      `docker run -d --name ${name} --network none --memory 512m --cpus 1.0 --pids-limit 200 cp-judge-gcc:latest tail -f /dev/null`,
-    );
-    pool.push({ name, busy: false });
+    await startPoolContainer(name);
+    pool.push({ name, hostDir: poolHostDir(name), busy: false });
     console.log(`Pool container ready: ${name}`);
   }
 }
@@ -64,34 +72,45 @@ function releaseContainer(container) {
   container.busy = false;
 }
 
-async function ensureContainerAlive(container) {
+// Recreates a pool container in place. Only called reactively (a compile/run
+// exec detected the container is gone) or from the background health check —
+// never on the per-submission hot path.
+async function recreateContainer(container) {
+  console.warn(`Recreating pool container: ${container.name}`);
   try {
-    const { stdout } = await execAsync(
-      `docker inspect -f "{{.State.Running}}" ${container.name}`,
-    );
-    if (stdout.trim() !== "true") throw new Error("not running");
-  } catch (e) {
-    console.warn(`Recreating dead pool container: ${container.name}`);
-    try {
-      await execAsync(`docker rm -f ${container.name}`);
-    } catch (_) {}
-    await execAsync(
-      `docker run -d --name ${container.name} --network none --memory 512m --cpus 1.0 --pids-limit 200 cp-judge-gcc:latest tail -f /dev/null`,
-    );
-  }
+    await execAsync(`docker rm -f ${container.name}`);
+  } catch (_) {}
+  try {
+    fs.rmSync(container.hostDir, { recursive: true, force: true });
+  } catch (_) {}
+  await startPoolContainer(container.name);
 }
+
+// Background safety net for containers that die while idle (e.g. OOM-killed).
+// Deliberately not run per-submission — that was costing a `docker inspect`
+// process spawn + daemon RPC on every single job.
+setInterval(async () => {
+  for (const container of pool) {
+    if (container.busy) continue;
+    try {
+      const { stdout } = await execAsync(
+        `docker inspect -f "{{.State.Running}}" ${container.name}`,
+      );
+      if (stdout.trim() !== "true") throw new Error("not running");
+    } catch (e) {
+      await recreateContainer(container);
+    }
+  }
+}, 10000);
 
 // ===== Per-submission processing using the pool =====
 async function processSubmission(msg) {
   const tStart = performance.now();
 
   const timings = {
-    redisFetch: 0,
+    redisAndContainerWait: 0,
     fsWrites: 0,
-    containerWait: 0,
-    dockerCp: 0,
     execRun: 0,
-    cleanup: 0,
     mongoUpdate: 0,
     deleteSQS: 0,
   };
@@ -99,47 +118,43 @@ async function processSubmission(msg) {
   let compileTime = 0;
   let executionTime = 0;
   let container = null;
-  const submissionDir = `/tmp/sub-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let containerDead = false;
 
   try {
     const job = JSON.parse(msg.Body);
-    fs.mkdirSync(submissionDir, { recursive: true });
-    const codePath = path.join(submissionDir, "main.cpp");
-    fs.writeFileSync(codePath, job.code);
 
-    // --- Redis fetch ---
-    const tRedisStart = performance.now();
-    const testCases = await getTestcaseFromCache(job.contestNo, job.problemId);
-    timings.redisFetch = performance.now() - tRedisStart;
+    // --- Redis fetch + container acquire happen in parallel ---
+    const tParallelStart = performance.now();
+    const [testCases, acquiredContainer] = await Promise.all([
+      getTestcaseFromCache(job.contestNo, job.problemId),
+      acquireContainer(),
+    ]);
+    container = acquiredContainer;
+    timings.redisAndContainerWait = performance.now() - tParallelStart;
 
-    // --- Filesystem writes ---
+    // --- Write files straight into the pool container's bind-mounted /code ---
+    // No docker exec / docker cp needed: hostDir is bind-mounted to /code in
+    // the already-running container, so plain fs calls land there directly.
     const tFsStart = performance.now();
-    const inputDir = `${submissionDir}/input`;
-    const outputDir = `${submissionDir}/output`;
+    const codeDir = container.hostDir;
+    const inputDir = path.join(codeDir, "input");
+    const outputDir = path.join(codeDir, "output");
+    // Clear codeDir's *contents* only — never rm/recreate codeDir itself.
+    // It's the source side of a live docker bind mount, so a fresh directory
+    // at the same path would be an inode the container's /code can't see.
+    for (const entry of fs.readdirSync(codeDir)) {
+      fs.rmSync(path.join(codeDir, entry), { recursive: true, force: true });
+    }
     fs.mkdirSync(inputDir, { recursive: true });
     fs.mkdirSync(outputDir, { recursive: true });
-
+    fs.writeFileSync(path.join(codeDir, "main.cpp"), job.code);
     for (const input of testCases.inputs) {
-      fs.writeFileSync(`${inputDir}/${input.name}`, input.content);
+      fs.writeFileSync(path.join(inputDir, input.name), input.content);
     }
     for (const output of testCases.outputs) {
-      fs.writeFileSync(`${outputDir}/${output.name}`, output.content);
+      fs.writeFileSync(path.join(outputDir, output.name), output.content);
     }
     timings.fsWrites = performance.now() - tFsStart;
-
-    // --- Acquire a warm container from the pool ---
-    const tWaitStart = performance.now();
-    container = await acquireContainer();
-    await ensureContainerAlive(container);
-    timings.containerWait = performance.now() - tWaitStart;
-
-    // --- Clean container's /code and copy fresh files in ---
-    const tCpStart = performance.now();
-    await execAsync(
-      `docker exec ${container.name} sh -c "rm -rf /code && mkdir -p /code"`,
-    );
-    await execAsync(`docker cp ${submissionDir}/. ${container.name}:/code`);
-    timings.dockerCp = performance.now() - tCpStart;
 
     // --- Compile + Run (exec into the already-running container) ---
     const tExecStart = performance.now();
@@ -254,6 +269,13 @@ ${your}`;
           } else if (error) {
             status = "error";
             errorMsg = stderr || "Unknown error";
+            if (
+              /is not running|No such container/i.test(
+                `${stderr || ""} ${error.message || ""}`,
+              )
+            ) {
+              containerDead = true;
+            }
           }
 
           const compileMatch = stdout.match(/__COMPILE_TIME__:(\d+)/);
@@ -289,22 +311,15 @@ ${your}`;
   } catch (err) {
     console.error("Job failed:", err);
   } finally {
-    // --- Clean up container state and release back to pool ---
+    // --- Release container back to the pool ---
+    // No cleanup exec here: the next job to use this container wipes
+    // codeDir via plain fs calls before writing its own files in.
     if (container) {
-      const tCleanupStart = performance.now();
-      try {
-        await execAsync(`docker exec ${container.name} sh -c "rm -rf /code"`);
-      } catch (e) {
-        console.warn(`Cleanup failed for ${container.name}:`, e.message);
+      if (containerDead) {
+        await recreateContainer(container);
       }
-      timings.cleanup = performance.now() - tCleanupStart;
       releaseContainer(container);
     }
-
-    // --- Clean up local staging dir ---
-    try {
-      fs.rmSync(submissionDir, { recursive: true, force: true });
-    } catch (e) {}
 
     // --- Delete SQS ---
     const tDeleteStart = performance.now();
@@ -323,15 +338,12 @@ ${your}`;
       `${label.padEnd(24)} ${ms.toFixed(0).padStart(5)} ms`;
 
     console.log("\n--- Timing Breakdown (warm pool) ---");
-    console.log(fmt("Redis fetch:", timings.redisFetch));
+    console.log(fmt("Redis fetch + container wait:", timings.redisAndContainerWait));
     console.log(fmt("Filesystem writes:", timings.fsWrites));
-    console.log(fmt("Container wait:", timings.containerWait));
-    console.log(fmt("Docker cp:", timings.dockerCp));
     console.log(fmt("Exec total:", timings.execRun));
     console.log(fmt("  Compile:", compileTime));
     console.log(fmt("  Execution:", executionTime));
     console.log(fmt("  Overhead:", dockerOverhead));
-    console.log(fmt("Cleanup:", timings.cleanup));
     console.log(fmt("Mongo update:", timings.mongoUpdate));
     console.log(fmt("Delete SQS:", timings.deleteSQS));
     console.log(fmt("TOTAL:", total));
