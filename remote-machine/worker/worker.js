@@ -26,7 +26,7 @@ const client = new SQSClient({ region: AWS_REGION });
 console.log("QUEUE is " + QUEUE_URL);
 const execAsync = util.promisify(exec);
 
-const POOL_SIZE = 2; // match your MAX_CONCURRENCY
+const POOL_SIZE = 1; // match MAX_CONCURRENCY below
 const pool = [];
 
 // docker-compose runs this worker at --scale app=2, so multiple replicas
@@ -360,7 +360,11 @@ ${your}`;
   }
 }
 
-const MAX_CONCURRENCY = 2; // per worker process
+// Host is a t3.medium (2 real vCPUs) running 2 replicas of this worker.
+// Each pool container claims --cpus 1.0, so total concurrent slots across
+// the host must not exceed 2 or containers start fighting over cores —
+// 1 slot per replica x 2 replicas = 2, matching the real core count.
+const MAX_CONCURRENCY = 1; // per worker process
 let activeCount = 0;
 
 async function pollQueue() {
